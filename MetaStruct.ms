@@ -66,7 +66,7 @@ struct MetaStruct (
 		this._addToCode f.code  indentation:1
 		this._addComponentDefReturn()
 	),
-	fn __addVarInitCode v = (if v.value != undefined then (this._addToCode ("this." + (v.id as string) + " = " + v.value + "\n")  indentation:2)),
+	fn __addVarInitCode v = (if v.value != undefined then (this._addToCode ("this." + (v.id as string) + " = set_" + (v.id as string) + " " + v.value + "\n")  indentation:2)),
 	fn _defStructIntro     = (
 		this.struct_def = ""
 		this._addStructKeyword()           -- struct
@@ -78,23 +78,66 @@ struct MetaStruct (
 	fn _defStructEnd = (this._addNewLine();this._closeParenthesis()),
 	fn _defStructVariables = (for v in this.struct_variables where (isKindOf v MetaStructVar) do (this.__addVariable v)),
 	fn _defStructFunctions = (for f in this.struct_functions where (isKindOf f MetaStructFunc) do (this.__addFunction f)),
+
+	fn _defStructVariableAccessors = (
+		local x = #()
+		for v in this.struct_variables where (isKindOf v MetaStructVar) do (
+
+
+			/* SETTER */			
+			-- func name = set_varname
+			local set_func = MetaStructFunc id:(("set_" + v.id) as name)
+
+			-- infer correct type
+			local convertType = undefined
+			case v.type of (
+				#string : (convertType="String")
+				#integer : (convertType="Integer")
+				#float : (convertType="Float")
+				#name : (convertType="Name")
+			)
+
+			-- build code
+			local c = "fn " + (set_func.id as string) + " v = (this."+v.id+" = (v as "+convertType+"))"
+
+			set_func.code = c
+			(this.__addFunction set_func)
+
+
+			/* GETTER */
+			local get_func = MetaStructFunc id:(("get_" + v.id) as name)
+			get_func.code = "fn " + (get_func.id as string) + " = (this."+v.id+")"
+
+			(this.__addFunction get_func)
+			this._addToCode "\n"
+
+		)
+		--print x
+	),
+
+
 	fn _defConstructor = (
-		_addToCode ("on " + this.struct_name + " create do ( \n")  indentation:1
+		_addToCode ("on create do ( \n")  indentation:1
 		(for v in this.struct_variables where (isKindOf v MetaStructVar) do (this.__addVarInitCode v))
 		_addToCode "\n\t)"
 		_addNewLine
 	),
 	
 
-
-
 	public
 	-- Public from here
 	fn generateStructCode = (
 		_defStructIntro()
+		_addToCode "\tprivate\n"
 
-		_addToCode "\n\t/*----------Variables----------*/\n"
+		_addToCode "\n\t/*----------Variables----------*/\n" 
 		_defStructVariables()
+
+
+		_addToCode "\n\tpublic"
+		_addToCode "\n\t/*----------Accessors----------*/\n"
+		_defStructVariableAccessors()
+
 
 		_addToCode "\n\t/*----------Methods----------*/\n"
 		_defStructFunctions()
@@ -110,8 +153,7 @@ struct MetaStruct (
 		)
 	),
 
-
-	fn getDef = (this.struct_def),
+	fn getStructDef = (this.struct_def),
 
 	on create do ()
 )
@@ -144,6 +186,6 @@ obj_meta = MetaStruct struct_name:"ObjName" struct_variables:obj_meta_variables
 
 -- generate struct code
 obj_meta.generateStructCode()
-print (obj_meta.getDef())
+print (obj_meta.getStructDef())
 
 0
