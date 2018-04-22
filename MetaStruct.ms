@@ -1,8 +1,3 @@
---fileins
-(
-	local thisdir = (getFilenamePath(getThisScriptFilename()))
-	filein (thisdir + @"lib/models.ms")
-)
 
 
 -- StructGenerator Variable def
@@ -16,8 +11,6 @@ struct MetaStructFunc (
 	code = undefined
 )
 
-
-
 --MetaStruct
 struct MetaStruct (
 
@@ -27,7 +20,10 @@ struct MetaStruct (
 	struct_functions = #(),
 
 	-- Struct options
-	isSkeleton,
+	skeleton,
+
+	-- Do we protect variables ? ie generating accessors
+	protect_variables = true,
 
 	-- lexical stuff is public
 	_p_space            = " ",
@@ -39,34 +35,45 @@ struct MetaStruct (
 	_p_comma_nl         = this._p_comma + this._p_new_line,
 
 
-	-- Private zone
+	-- Private bloc
 	private
 
 
 	-- the structure definition
 	struct_def,
 
+	fn _addSpace               indentation:undefined = (this._addToCode _p_space             indentation:indentation),
+	fn _addNewLine             indentation:undefined = (this._addToCode _p_new_line          indentation:indentation),
+	fn _addMemberDefReturn     indentation:undefined = (this._addToCode _p_comma_nl          indentation:indentation),
+	fn _addStructKeyword       indentation:undefined = (this._addToCode (_p_struct_keyw + _p_space) indentation:indentation),
+	fn _openParenthesis        indentation:undefined = (this._addToCode _p_open_parenthese   indentation:indentation),
+	fn _closeParenthesis       indentation:undefined = (this._addToCode _p_close_parenthese  indentation:indentation),
 
 	fn _addToCode c indentation:"" = (
 		local indent = ""
 		if (superclassof indentation) == Number then (for i=1 to indentation do (indent = indent + "\t"))
 		this.struct_def = this.struct_def + indent + c
 	),
-	fn _addSpace               indentation:undefined = (_addToCode _p_space             indentation:indentation),
-	fn _addNewLine             indentation:undefined = (_addToCode _p_new_line          indentation:indentation),
-	fn _addComponentDefReturn  indentation:undefined = (_addToCode _p_comma_nl          indentation:indentation),
-	fn _addStructKeyword       indentation:undefined = (_addToCode (_p_struct_keyw + _p_space) indentation:indentation),
-	fn _openParenthesis        indentation:undefined = (_addToCode _p_open_parenthese   indentation:indentation),
-	fn _closeParenthesis       indentation:undefined = (_addToCode _p_close_parenthese  indentation:indentation),
+
 	fn __addVariable v = (
 		this._addToCode ((v.id as string) + " = undefined") indentation:1
-		this._addComponentDefReturn()
+		this._addMemberDefReturn()
 	),
 	fn __addFunction f = (
 		this._addToCode f.code  indentation:1
-		this._addComponentDefReturn()
+		this._addMemberDefReturn()
 	),
-	fn __addVarInitCode v = (if v.value != undefined then (this._addToCode ("this." + (v.id as string) + " = set_" + (v.id as string) + " " + v.value + "\n")  indentation:2)),
+	fn __addVarInitCode v = (
+		if v.value != undefined then (
+			if this.protect_variables == true then (
+				this._addToCode ("this." + (v.id as string) + " = set_" + (v.id as string) + " " + v.value + "\n")  indentation:2
+			)else(
+				this._addToCode ("this." + (v.id as string) + " = "+ v.value + "\n")  indentation:2
+			)
+			
+		)
+	),
+
 	fn _defStructIntro     = (
 		this.struct_def = ""
 		this._addStructKeyword()           -- struct
@@ -128,16 +135,20 @@ struct MetaStruct (
 	-- Public from here
 	fn generateStructCode = (
 		_defStructIntro()
-		_addToCode "\tprivate\n"
+
+		-- Protect vars
+		if this.protect_variables == true then (_addToCode "\tprivate\n")
+		
 
 		_addToCode "\n\t/*----------Variables----------*/\n" 
 		_defStructVariables()
 
-
-		_addToCode "\n\tpublic"
-		_addToCode "\n\t/*----------Accessors----------*/\n"
-		_defStructVariableAccessors()
-
+		-- Generate accessors - Protect vars
+		if this.protect_variables == true then (
+			_addToCode "\n\tpublic"
+			_addToCode "\n\t/*----------Accessors----------*/\n"
+			_defStructVariableAccessors()
+		)
 
 		_addToCode "\n\t/*----------Methods----------*/\n"
 		_defStructFunctions()
@@ -147,7 +158,7 @@ struct MetaStruct (
 		_defConstructor()
 		_defStructEnd()
 
-		if isSkeleton == true then (
+		if this.skeleton == true then (
 			_addNewLine()
 			_addToCode ("global " + this.struct_name + " = " + this.struct_name + "()")
 		)
@@ -167,25 +178,31 @@ struct MetaStruct (
 		struct_functions:#(
 			(MetaStructFunc id:#sayHello code:"fn sayHello = (print \"Helloworld!\")")
 		) \
-		isSkeleton:false
+		skeleton:false
 
 mmsg.generateStructCode()
 x = execute mmsg.struct_def*/
 
 
 -- Define object options
-obj_meta_name = "ObjName"
+obj_meta_name = "MySuperStruct"
 obj_meta_variables = #(
 	(MetaStructVar id:#myInt value:"99" type:#integer),
 	(MetaStructVar id:#myFloat value:"55.5" type:#float)
 )
 
+obj_meta_funcs = #(
+	(MetaStructFunc id:#sayHello code:"fn sayHello = (print \"Helloworld!\")")
+)
+
 -- Instance a metastruct
-obj_meta = MetaStruct struct_name:"ObjName" struct_variables:obj_meta_variables
+obj_meta = MetaStruct struct_name:obj_meta_name \
+			struct_variables:obj_meta_variables \
+			struct_functions:obj_meta_funcs \
+			skeleton:true \
+			protect_variables:false
 
 
 -- generate struct code
 obj_meta.generateStructCode()
-print (obj_meta.getStructDef())
-
-0
+execute (obj_meta.getStructDef())
