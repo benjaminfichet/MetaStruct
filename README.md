@@ -19,7 +19,7 @@ obj_meta.generateStructCode()
 obj_meta.getStructDef()
 ```
 
-The previous snippet would produce the following as string : 
+The previous snippet produces a string like: 
 ```maxscript
 struct ObjName (
 	private
